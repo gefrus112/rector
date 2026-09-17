@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typo Escape - Manga Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js for Web Audio & Sound Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Hand-drawn & Manga Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Bangers&family=Patrick+Hand&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Patrick Hand', 'Comic Sans MS', cursive, sans-serif;
+            background-color: #f5f2eb;
+            user-select: none;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .sketch-font {
+            font-family: 'Architects Daughter', 'Comic Sans MS', cursive, sans-serif;
+        }
+        .title-font {
+            font-family: 'Permanent Marker', 'Impact', cursive, sans-serif;
+        }
+        .manga-font {
+            font-family: 'Bangers', 'Impact', cursive, sans-serif;
+            letter-spacing: 1px;
+        }
+        /* Paper texture background */
+        .paper-bg {
+            background-color: #fbf8f3;
+            background-image: 
+                radial-gradient(#e0dad0 1px, transparent 1px), 
+                radial-gradient(#e0dad0 1px, #fbf8f3 1px);
+            background-size: 36px 36px;
+            background-position: 0 0, 18px 18px;
+        }
+        /* Hand drawn button styling */
+        .sketch-btn {
+            border: 3px solid #1e1e24;
+            border-radius: 255px 15px 225px 15px/15px 225px 15px 255px;
+            transition: all 0.15s ease-in-out;
+            box-shadow: 3px 4px 0px #1e1e24;
+            cursor: pointer;
+        }
+        .sketch-btn:hover {
+            transform: translateY(-2px) rotate(-1deg);
+            box-shadow: 5px 6px 0px #1e1e24;
+        }
+        .sketch-btn:active {
+            transform: translateY(2px) rotate(1deg);
+            box-shadow: 1px 2px 0px #1e1e24;
+        }
+        canvas {
+            display: block;
+            touch-action: none;
+            aspect-ratio: 16 / 9;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        @keyframes panelPop {
+            0% { transform: scale(0.6) rotate(-4deg); opacity: 0; }
+            70% { transform: scale(1.05) rotate(1deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .manga-panel-anim {
+            animation: panelPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="paper-bg h-screen w-screen flex flex-col justify-between items-center text-slate-800 relative">
+
+    <!-- Top HUD Bar -->
+    <header class="w-full max-w-5xl px-3 py-2 flex justify-between items-center z-20">
+        <div class="flex items-center gap-2 sm:gap-3">
+            <h1 class="title-font text-2xl sm:text-3xl text-slate-900 tracking-wider cursor-pointer hover:text-amber-600 transition" id="logo-title">
+                TYPO ESCAPE
+            </h1>
+            <span id="level-badge" class="hidden sketch-font bg-amber-100 border-2 border-slate-800 px-2.5 py-0.5 rounded-full text-xs sm:text-sm font-bold shadow-sm">
+                LEVEL 1
+            </span>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <!-- 6 Health Hearts Display -->
+            <div id="health-container" class="hidden flex items-center gap-1 bg-rose-50 border-2 border-slate-800 px-2.5 py-1 rounded-full text-sm font-bold shadow-sm">
+                <span id="health-hearts" class="text-rose-600 text-base tracking-tighter">❤️❤️❤️❤️❤️❤️</span>
+            </div>
+
+            <!-- Ink / Currency Counter -->
+            <div id="ink-counter-container" class="flex items-center gap-1 sketch-font bg-amber-50 border-2 border-slate-800 px-2.5 py-1 rounded-full text-xs sm:text-sm font-bold shadow-sm">
+                <span class="text-base">✒️</span>
+                <span id="ink-count-display">15</span>
+            </div>
+
+            <!-- Audio Toggle Button -->
+            <button id="btn-audio" class="sketch-btn bg-amber-100 hover:bg-amber-200 px-2.5 py-1 font-bold text-xs sm:text-sm">
+                🔊 MUSIC: ON
+            </button>
+            <button id="btn-info" class="hidden sketch-btn bg-sky-100 hover:bg-sky-200 px-2.5 py-1 font-bold text-xs sm:text-sm">
+                ℹ️ INFO
+            </button>
+            <button id="btn-restart" class="hidden sketch-btn bg-white hover:bg-amber-50 px-2.5 py-1 font-bold text-xs sm:text-sm">
+                ↻ RESET
+            </button>
+            <button id="btn-menu" class="sketch-btn bg-white hover:bg-amber-50 px-2.5 py-1 font-bold text-xs sm:text-sm">
+                MENU
+            </button>
+        </div>
+    </header>
+
+    <!-- Canvas Container -->
+    <main class="relative w-full flex-1 max-w-5xl px-2 flex justify-center items-center overflow-hidden">
+        <canvas id="gameCanvas" width="800" height="450" class="w-full h-auto border-4 border-slate-900 rounded-xl shadow-2xl bg-white"></canvas>
+
+        <!-- Boss Health & Info Overlay (Active in Boss Fights) -->
+        <div id="boss-hud" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white border-4 border-rose-600 px-6 py-2 rounded-2xl shadow-2xl z-20 flex flex-col items-center max-w-md w-11/12">
+            <div class="flex justify-between w-full items-center mb-1">
+                <span class="manga-font text-rose-400 text-lg sm:text-xl tracking-wider">👹 INK OVERLORD TITAN</span>
+                <span id="boss-hp-text" class="title-font text-sm text-yellow-300">HP: 100/100</span>
+            </div>
+            <div class="w-full bg-slate-800 h-4 border-2 border-slate-700 rounded-full overflow-hidden">
+                <div id="boss-hp-bar" class="bg-gradient-to-r from-rose-600 to-amber-500 h-full w-full transition-all duration-300"></div>
+            </div>
+        </div>
+
+        <!-- Manga Comic Cutscene Panel Overlay -->
+        <div id="manga-panel-overlay" class="hidden absolute inset-0 bg-slate-950/80 backdrop-blur-md flex justify-center items-center p-4 z-40">
+            <div class="manga-panel-anim bg-white border-8 border-slate-900 p-4 sm:p-6 rounded-3xl max-w-lg w-full shadow-2xl relative flex flex-col items-center">
+                <div class="absolute -top-6 bg-rose-600 text-white font-black manga-font px-4 py-1 text-xl sm:text-2xl rounded-full border-4 border-slate-900 tracking-wider">
+                    ⚡ MANGA ACTION CUTSCENE ⚡
+                </div>
+                <div id="manga-panel-image-container" class="w-full h-48 sm:h-56 bg-slate-100 border-4 border-slate-900 rounded-xl my-3 relative overflow-hidden flex items-center justify-center">
+                    <canvas id="mangaComicCanvas" width="400" height="220" class="w-full h-full"></canvas>
+                </div>
+                <h3 id="manga-panel-title" class="manga-font text-2xl sm:text-3xl text-slate-900 my-1">CHAPTER 5: THE TITAN AWAKENS!</h3>
+                <p id="manga-panel-desc" class="sketch-font text-base text-slate-800 text-center bg-amber-50 border-2 border-slate-900 p-3 rounded-xl w-full">
+                    Spell WOOD or SWORD to summon Carter's ultimate weapon and defeat the Ink Demon!
+                </p>
+                <button id="manga-panel-continue-btn" class="sketch-btn bg-amber-400 hover:bg-amber-500 text-slate-900 title-font text-xl px-8 py-2 mt-3">
+                    ENGAGE BATTLE ➔
+                </button>
+            </div>
+        </div>
+
+        <!-- Level Briefing / Info Modal -->
+        <div id="info-overlay" class="hidden absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center p-4 z-30">
+            <div class="bg-[#fbf8f3] border-4 border-slate-900 p-5 sm:p-6 rounded-2xl max-w-md w-full text-center shadow-2xl relative rotate-[-0.5deg]">
+                <h2 id="info-level-title" class="title-font text-2xl sm:text-3xl text-slate-900 mb-1">CHAPTER 1: THE SPELLED GATE</h2>
+                <div id="info-manga-tag" class="hidden manga-font text-lg text-rose-600 bg-rose-100 border border-rose-400 rounded-md py-0.5 px-2 inline-block mb-2">
+                    ⚡ MANGA ACTION MODE ⚡
+                </div>
+                <div class="sketch-font text-sm sm:text-base text-slate-700 space-y-2 text-left bg-white border-2 border-slate-800 p-3.5 rounded-xl my-3 shadow-inner">
+                    <p id="info-story" class="italic text-slate-600">Carter is trapped in a sketchbook world! Assemble letters to alter reality and break free.</p>
+                    <div class="border-t border-slate-200 pt-2 space-y-1">
+                        <p>🎯 <strong>Objective:</strong> <span id="info-objective">Spell OPEN to unlock the escape gate.</span></p>
+                        <p>👾 <strong>Hazards:</strong> <span id="info-hazards">Spikes, Ink Monsters</span></p>
+                        <p>🦘 <strong>Gadgets:</strong> <span id="info-gadgets">Spring Pads, Moveable Blocks</span></p>
+                    </div>
+                </div>
+                <button id="info-start-btn" class="sketch-btn bg-emerald-300 hover:bg-emerald-400 text-slate-900 font-bold text-lg px-8 py-2">
+                    START LEVEL ➔
+                </button>
+            </div>
+        </div>
+
+        <!-- Level Complete Modal -->
+        <div id="modal-overlay" class="hidden absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center p-4 z-30">
+            <div id="modal-card" class="bg-[#fbf8f3] border-4 border-slate-900 p-6 sm:p-8 rounded-2xl max-w-md w-full text-center shadow-2xl relative transform rotate-[-1deg]">
+                <h2 id="modal-title" class="title-font text-3xl mb-3 text-slate-900">LEVEL COMPLETE!</h2>
+                <p id="modal-desc" class="sketch-font text-lg text-slate-700 mb-6">You solved the puzzle word and opened the exit!</p>
+                <div class="flex justify-center gap-4">
+                    <button id="modal-next-btn" class="sketch-btn bg-amber-300 hover:bg-amber-400 text-slate-900 font-bold text-lg px-6 py-2">
+                        NEXT LEVEL ➔
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="gameover-overlay" class="hidden absolute inset-0 bg-rose-950/60 backdrop-blur-sm flex justify-center items-center p-4 z-30">
+            <div class="bg-[#fbf8f3] border-4 border-rose-900 p-6 sm:p-8 rounded-2xl max-w-md w-full text-center shadow-2xl relative rotate-[1deg]">
+                <h2 class="manga-font text-4xl text-rose-600 mb-2">💥 CARTER DEFEATED!</h2>
+                <p class="sketch-font text-base text-slate-700 mb-5">You ran out of health points! Watch out for ink monsters and spikes.</p>
+                <button id="gameover-retry-btn" class="sketch-btn bg-rose-300 hover:bg-rose-400 text-slate-900 font-bold text-lg px-6 py-2">
+                    TRY AGAIN ↻
+                </button>
+            </div>
+        </div>
+
+        <!-- Accessories Shop Modal -->
+        <div id="shop-overlay" class="hidden absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-30">
+            <div class="bg-[#fbf8f3] border-4 border-slate-900 p-5 sm:p-6 rounded-2xl max-w-2xl w-full text-center shadow-2xl relative flex flex-col max-h-[90vh]">
+                <div class="flex justify-between items-center mb-3">
+                    <h2 class="title-font text-2xl sm:text-3xl text-slate-900">🎩 CARTER'S HAT & ITEM SHOP</h2>
+                    <button id="shop-close-btn" class="sketch-btn bg-rose-200 hover:bg-rose-300 px-3 py-1 font-bold text-sm">✖ CLOSE</button>
+                </div>
+                <p class="sketch-font text-sm text-slate-600 mb-4">Earn Ink Drops in levels to unlock accessories for Carter!</p>
+
+                <!-- Shop Items Grid -->
+                <div id="shop-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto p-2 flex-1">
+                    <!-- Dynamic shop cards -->
+                </div>
+
+                <div class="mt-4 pt-3 border-t-2 border-slate-800 flex justify-between items-center">
+                    <span class="sketch-font text-sm font-bold">Balance: <span id="shop-ink-balance" class="text-amber-700">15</span> ✒️ Ink Drops</span>
+                    <span class="text-xs text-slate-500 sketch-font">Items auto-equip when selected!</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Credits Modal -->
+        <div id="credits-overlay" class="hidden absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-30">
+            <div class="bg-[#fbf8f3] border-4 border-slate-900 p-6 rounded-2xl max-w-md w-full text-center shadow-2xl relative rotate-[1deg]">
+                <h2 class="title-font text-3xl mb-2 text-slate-900">✨ CREDITS ✨</h2>
+                <div class="sketch-font text-slate-700 text-sm sm:text-base space-y-3 my-4 text-left border-2 border-slate-800 p-4 rounded-xl bg-white shadow-sm">
+                    <p class="font-bold text-center text-slate-900 text-lg border-b border-slate-300 pb-1">TYPO ESCAPE: MANGA EDITION</p>
+                    <p>🎮 <strong>Game Concept & Code:</strong> Hand-Drawn Word Escape Platformer</p>
+                    <p>🌟 <strong>Special Shoutout:</strong> <span class="bg-amber-100 px-2 py-0.5 rounded border border-amber-300 font-bold">delodiwiw Roblox</span></p>
+                    <p>🐙 <strong>GitHub Creator:</strong> Follow <a href="https://github.com/offfactory" target="_blank" rel="noopener" class="text-blue-600 underline font-bold hover:text-blue-800">https://github.com/offfactory</a> on GitHub!</p>
+                    <p>✏️ <strong>Visual Style:</strong> Pencil Sketch Canvas & Manga Comic Action</p>
+                </div>
+                <button id="credits-close-btn" class="sketch-btn bg-amber-300 hover:bg-amber-400 text-slate-900 font-bold text-base px-6 py-1.5">
+                    BACK TO MENU
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Mobile Controls & Hints Footer -->
+    <footer class="w-full max-w-5xl px-3 py-2 flex flex-col sm:flex-row justify-between items-center text-xs sm:text-sm text-slate-600 z-20 gap-2">
+        <div id="keyboard-controls-hint" class="sketch-font text-center sm:text-left flex items-center gap-2 flex-wrap">
+            <span class="font-bold border border-slate-800 px-1.5 py-0.5 rounded bg-amber-50">A / D</span> Move
+            <span class="font-bold border border-slate-800 px-1.5 py-0.5 rounded bg-amber-50">W / SPACE</span> Jump
+            <span class="font-bold border border-slate-800 px-1.5 py-0.5 rounded bg-amber-50">S</span> Slide Down
+            <span class="font-bold border border-rose-800 px-1.5 py-0.5 rounded bg-amber-200 text-rose-900">E / X / CLICK</span> Grab & Throw Block
+        </div>
+
+        <div id="touch-controls" class="flex sm:hidden gap-1.5 justify-center items-center w-full py-1">
+            <button id="t-left" class="sketch-btn bg-white active:bg-amber-200 px-3 py-1.5 font-bold text-xs">◀</button>
+            <button id="t-down" class="sketch-btn bg-white active:bg-amber-200 px-2.5 py-1.5 font-bold text-xs">▼ SLIDE</button>
+            <button id="t-right" class="sketch-btn bg-white active:bg-amber-200 px-3 py-1.5 font-bold text-xs">▶</button>
+            <button id="t-grab" class="sketch-btn bg-amber-200 active:bg-amber-300 px-3 py-1.5 font-bold text-xs">GRAB (X)</button>
+            <button id="t-jump" class="sketch-btn bg-amber-300 active:bg-amber-400 px-3.5 py-1.5 font-bold text-xs">JUMP ▲</button>
+        </div>
+    </footer>
+
+    <script>
+        // Game States
+        const STATE = {
+            MENU: 0,
+            LEVEL_SELECT: 1,
+            PLAYING: 2,
+            LEVEL_CLEAR: 3,
+            GAMEOVER: 4,
+            SHOP: 5,
+            CREDITS: 6
+        };
+        let currentState = STATE.MENU;
+
+        // Player Progress & Inventory
+        let inkDrops = 25;
+        let equippedHat = 'scarf'; // default hero scarf
+        let currentLevelIndex = 0;
+
+        // Web Audio Synthesizers using Tone.js
+        let soundEnabled = true;
+        let musicSynth = null;
+        let sfxSynth = null;
+        let musicLoop = null;
+
+        function updateInkDisplay() {
+            const inkDisplay = document.getElementById('ink-count-display');
+            const shopBalance = document.getElementById('shop-ink-balance');
+            if (inkDisplay) inkDisplay.textContent = inkDrops;
+            if (shopBalance) shopBalance.textContent = inkDrops;
+        }
+
+        function playSFX(type) {
+            if (!soundEnabled || typeof Tone === 'undefined') return;
+            try {
+                if (!sfxSynth) {
+                    sfxSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    sfxSynth.volume.value = -8;
+                }
+                if (type === 'jump') sfxSynth.triggerAttackRelease("C5", "8n");
+                else if (type === 'pickup') sfxSynth.triggerAttackRelease("E5", "16n");
+                else if (type === 'throw') sfxSynth.triggerAttackRelease("G4", "8n");
+                else if (type === 'hit') sfxSynth.triggerAttackRelease(["C3", "Eb3"], "8n");
+                else if (type === 'spell') sfxSynth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "4n");
+                else if (type === 'boss_hit') sfxSynth.triggerAttackRelease(["F3", "A3", "C4"], "4n");
+                else if (type === 'clear') sfxSynth.triggerAttackRelease(["G4", "C5", "E5", "G5"], "4n");
+            } catch (e) {
+                console.log("Audio play error", e);
+            }
+        }
+
+        function initAudio() {
+            if (sfxSynth) return;
+            try {
+                Tone.start();
+                sfxSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "triangle" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.2 }
+                }).toDestination();
+                sfxSynth.volume.value = -6;
+
+                musicSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.05, decay: 0.2, sustain: 0.2, release: 0.3 }
+                }).toDestination();
+                musicSynth.volume.value = -16;
+
+                const notes = ["C4", "E4", "G4", "B4", "A4", "G4", "E4", "D4"];
+                let step = 0;
+                musicLoop = new Tone.Loop(time => {
+                    if (soundEnabled && currentState === STATE.PLAYING) {
+                        musicSynth.triggerAttackRelease(notes[step % notes.length], "8n", time);
+                        step++;
+                    }
+                }, "4n").start(0);
+
+                Tone.Transport.start();
+            } catch (e) {
+                console.log("Audio waiting for interaction.");
+            }
+        }
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const logoTitle = document.getElementById('logo-title');
+        const levelBadge = document.getElementById('level-badge');
+        const healthContainer = document.getElementById('health-container');
+        const healthHearts = document.getElementById('health-hearts');
+        const btnAudio = document.getElementById('btn-audio');
+        const btnInfo = document.getElementById('btn-info');
+        const btnRestart = document.getElementById('btn-restart');
+        const btnMenu = document.getElementById('btn-menu');
+        const bossHud = document.getElementById('boss-hud');
+        const bossHpText = document.getElementById('boss-hp-text');
+        const bossHpBar = document.getElementById('boss-hp-bar');
+        const mangaPanelOverlay = document.getElementById('manga-panel-overlay');
+        const mangaPanelContinueBtn = document.getElementById('manga-panel-continue-btn');
+        const mangaComicCanvas = document.getElementById('mangaComicCanvas');
+        const infoOverlay = document.getElementById('info-overlay');
+        const infoStartBtn = document.getElementById('info-start-btn');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalNextBtn = document.getElementById('modal-next-btn');
+        const gameoverOverlay = document.getElementById('gameover-overlay');
+        const gameoverRetryBtn = document.getElementById('gameover-retry-btn');
+        const shopOverlay = document.getElementById('shop-overlay');
+        const shopCloseBtn = document.getElementById('shop-close-btn');
+        const shopGrid = document.getElementById('shop-grid');
+        const creditsOverlay = document.getElementById('credits-overlay');
+        const creditsCloseBtn = document.getElementById('credits-close-btn');
+
+        const VIRTUAL_WIDTH = 800;
+        const VIRTUAL_HEIGHT = 450;
+
+        function resizeCanvas() {
+            canvas.width = VIRTUAL_WIDTH;
+            canvas.height = VIRTUAL_HEIGHT;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Sketch Line Helper
+        function drawSketchLine(x1, y1, x2, y2, thickness = 2) {
+            ctx.save();
+            ctx.strokeStyle = '#1e1e24';
+            ctx.lineWidth = thickness;
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            const midX = (x1 + x2) / 2 + (Math.random() - 0.5) * 2;
+            const midY = (y1 + y2) / 2 + (Math.random() - 0.5) * 2;
+            ctx.quadraticCurveTo(midX, midY, x2, y2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Particle FX
+        let mangaParticles = [];
+        function addMangaImpact(x, y, text = "POW!") {
+            mangaParticles.push({
+                x, y, text,
+                scale: 0.5,
+                alpha: 1.0,
+                rotation: (Math.random() - 0.5) * 0.4
+            });
+        }
+
+        function updateAndDrawParticles(ctx) {
+            for (let i = mangaParticles.length - 1; i >= 0; i--) {
+                let p = mangaParticles[i];
+                p.scale += 0.08;
+                p.alpha -= 0.04;
+                if (p.alpha <= 0) {
+                    mangaParticles.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.scale(p.scale, p.scale);
+                ctx.globalAlpha = p.alpha;
+                ctx.font = 'bold 28px "Bangers", "Impact", sans-serif';
+                ctx.fillStyle = '#ef4444';
+                ctx.strokeStyle = '#1e1e24';
+                ctx.lineWidth = 3;
+                ctx.strokeText(p.text, 0, 0);
+                ctx.fillText(p.text, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        class Cloud {
+            constructor() {
+                this.x = Math.random() * VIRTUAL_WIDTH;
+                this.y = 30 + Math.random() * 80;
+                this.speed = 0.2 + Math.random() * 0.3;
+                this.size = 25 + Math.random() * 20;
+            }
+            update() {
+                this.x += this.speed;
+                if (this.x - this.size * 2 > VIRTUAL_WIDTH) {
+                    this.x = -this.size * 2;
+                    this.y = 30 + Math.random() * 80;
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.fillStyle = "#ffffff";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.arc(this.x + this.size * 0.7, this.y - this.size * 0.3, this.size * 0.8, 0, Math.PI * 2);
+                ctx.arc(this.x + this.size * 1.4, this.y, this.size * 0.9, 0, Math.PI * 2);
+                ctx.fill();
+                drawSketchLine(this.x - this.size * 0.8, this.y + this.size * 0.5, this.x + this.size * 2.2, this.y + this.size * 0.5, 2);
+                ctx.restore();
+            }
+        }
+        const clouds = [new Cloud(), new Cloud(), new Cloud(), new Cloud()];
+
+        const menuStickman = {
+            x: VIRTUAL_WIDTH / 2,
+            y: 50,
+            vy: 0,
+            isSliding: false,
+            reset(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vy = 0;
+                this.isSliding = false;
+            },
+            triggerSlide() {
+                if (!this.isSliding) {
+                    this.isSliding = true;
+                    this.vy = -3;
+                }
+            },
+            update(bounds) {
+                if (this.isSliding) {
+                    this.vy += 0.4;
+                    this.y += this.vy;
+                    if (this.y >= bounds.height - 70) {
+                        this.y = bounds.height - 70;
+                        this.vy = 0;
+                    }
+                }
+            },
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                // Draw Stickman
+                ctx.strokeStyle = '#1e1e24';
+                ctx.lineWidth = 3;
+                // Head
+                ctx.beginPath();
+                ctx.arc(0, -35, 12, 0, Math.PI * 2);
+                ctx.stroke();
+                // Body
+                ctx.beginPath();
+                ctx.moveTo(0, -23);
+                ctx.lineTo(0, 5);
+                ctx.stroke();
+                // Scarf / Hat
+                if (equippedHat === 'scarf') {
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(-8, -24, 16, 5);
+                } else if (equippedHat === 'tophat') {
+                    ctx.fillStyle = '#1e1e24';
+                    ctx.fillRect(-12, -47, 24, 4);
+                    ctx.fillRect(-8, -62, 16, 15);
+                }
+                // Limbs
+                if (this.isSliding && this.y < VIRTUAL_HEIGHT - 70) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -15); ctx.lineTo(-15, -25);
+                    ctx.moveTo(0, -15); ctx.lineTo(15, -25);
+                    ctx.moveTo(0, 5); ctx.lineTo(-12, 20);
+                    ctx.moveTo(0, 5); ctx.lineTo(12, 20);
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(0, -15); ctx.lineTo(-12, -5);
+                    ctx.moveTo(0, -15); ctx.lineTo(12, -5);
+                    ctx.moveTo(0, 5); ctx.lineTo(-8, 22);
+                    ctx.moveTo(0, 5); ctx.lineTo(8, 22);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        };
+
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.w = 24;
+                this.h = 44;
+                this.vx = 0;
+                this.vy = 0;
+                this.grounded = false;
+                this.facingRight = true;
+                this.isSliding = false;
+                this.heldBlock = null;
+                this.health = 6;
+                this.invuln = 0;
+            }
+            update(keys, level) {
+                if (this.invuln > 0) this.invuln--;
+
+                // Movement
+                const speed = this.isSliding ? 4.5 : 3.8;
+                if (keys['KeyA'] || keys['ArrowLeft']) {
+                    this.vx = -speed;
+                    this.facingRight = false;
+                } else if (keys['KeyD'] || keys['ArrowRight']) {
+                    this.vx = speed;
+                    this.facingRight = true;
+                } else {
+                    this.vx *= 0.7;
+                }
+
+                // Slide Down
+                if ((keys['KeyS'] || keys['ArrowDown']) && this.grounded) {
+                    this.isSliding = true;
+                    this.h = 24;
+                } else {
+                    this.isSliding = false;
+                    this.h = 44;
+                }
+
+                // Jump
+                if ((keys['KeyW'] || keys['ArrowUp'] || keys['Space']) && this.grounded) {
+                    this.vy = -10.5;
+                    this.grounded = false;
+                    playSFX('jump');
+                }
+
+                // Gravity
+                this.vy += 0.55;
+
+                // X position update & boundaries
+                this.x += this.vx;
+                if (this.x < 10) this.x = 10;
+                if (this.x > VIRTUAL_WIDTH - 30) this.x = VIRTUAL_WIDTH - 30;
+
+                // Y position update & Platform collisions
+                this.y += this.vy;
+                this.grounded = false;
+
+                level.platforms.forEach(p => {
+                    if (this.x + this.w > p.x && this.x < p.x + p.w) {
+                        if (this.y + this.h >= p.y && this.y + this.h <= p.y + p.h + 10 && this.vy >= 0) {
+                            this.y = p.y - this.h;
+                            this.vy = 0;
+                            this.grounded = true;
+                        }
+                    }
+                });
+
+                // Held block position
+                if (this.heldBlock) {
+                    this.heldBlock.x = this.x + (this.facingRight ? 20 : -25);
+                    this.heldBlock.y = this.y - 10;
+                    this.heldBlock.vx = 0;
+                    this.heldBlock.vy = 0;
+                }
+            }
+            takeDamage(amount = 1) {
+                if (this.invuln > 0) return;
+                this.health -= amount;
+                this.invuln = 45; // 45 frames invulnerability
+                playSFX('hit');
+                addMangaImpact(this.x, this.y, "OUCH!");
+                updateHealthHeartsDisplay();
+                if (this.health <= 0) {
+                    currentState = STATE.GAMEOVER;
+                    gameoverOverlay.classList.remove('hidden');
+                }
+            }
+            draw(ctx) {
+                if (this.invuln % 6 >= 3) return; // Flash effect
+                ctx.save();
+                ctx.translate(this.x + this.w / 2, this.y + this.h);
+
+                // Scarf trail animation
+                if (equippedHat === 'scarf' && Math.abs(this.vx) > 0.5) {
+                    ctx.fillStyle = '#ef4444';
+                    const scarfX = this.facingRight ? -12 : 12;
+                    ctx.fillRect(scarfX, -30, this.facingRight ? -15 : 15, 6);
+                }
+
+                ctx.strokeStyle = '#1e1e24';
+                ctx.lineWidth = 3;
+                if (this.isSliding) {
+                    // Crouched slide pose
+                    ctx.beginPath();
+                    ctx.arc(0, -18, 9, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, -10); ctx.lineTo(12, 0);
+                    ctx.stroke();
+                } else {
+                    // Normal pose
+                    ctx.beginPath();
+                    ctx.arc(0, -34, 10, 0, Math.PI * 2); ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, -24); ctx.lineTo(0, -6); ctx.stroke();
+                    // Legs
+                    ctx.beginPath();
+                    ctx.moveTo(0, -6); ctx.lineTo(-8, 0);
+                    ctx.moveTo(0, -6); ctx.lineTo(8, 0); ctx.stroke();
+                    // Arms
+                    ctx.beginPath();
+                    ctx.moveTo(0, -18);
+                    if (this.heldBlock) {
+                        ctx.lineTo(this.facingRight ? 12 : -12, -22);
+                    } else {
+                        ctx.lineTo(this.facingRight ? 10 : -10, -10);
+                    }
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+        }
+
+        class Block {
+            constructor(x, y, char) {
+                this.x = x;
+                this.y = y;
+                this.w = 32;
+                this.h = 32;
+                this.char = char;
+                this.vx = 0;
+                this.vy = 0;
+                this.isHeld = false;
+            }
+            update(level) {
+                if (this.isHeld) return;
+                this.vy += 0.5;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.85;
+
+                level.platforms.forEach(p => {
+                    if (this.x + this.w > p.x && this.x < p.x + p.w) {
+                        if (this.y + this.h >= p.y && this.y + this.h <= p.y + p.h + 8 && this.vy >= 0) {
+                            this.y = p.y - this.h;
+                            this.vy = 0;
+                        }
+                    }
+                });
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.fillStyle = '#fef08a';
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                drawSketchLine(this.x, this.y, this.x + this.w, this.y, 2);
+                drawSketchLine(this.x + this.w, this.y, this.x + this.w, this.y + this.h, 2);
+                drawSketchLine(this.x + this.w, this.y + this.h, this.x, this.y + this.h, 2);
+                drawSketchLine(this.x, this.y + this.h, this.x, this.y, 2);
+
+                ctx.font = 'bold 20px "Bangers", "Impact", sans-serif';
+                ctx.fillStyle = '#1e1e24';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.char, this.x + this.w / 2, this.y + this.h / 2);
+                ctx.restore();
+            }
+        }
+
+        class Monster {
+            constructor(x, y, range = 80) {
+                this.x = x;
+                this.y = y;
+                this.w = 28;
+                this.h = 28;
+                this.startX = x;
+                this.range = range;
+                this.vx = 1.2;
+            }
+            update() {
+                this.x += this.vx;
+                if (Math.abs(this.x - this.startX) > this.range) {
+                    this.vx *= -1;
+                }
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.fillStyle = '#1e1e24';
+                ctx.beginPath();
+                ctx.arc(this.x + 14, this.y + 14, 14, 0, Math.PI * 2);
+                ctx.fill();
+                // Spiky eyes
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(this.x + 6, this.y + 8, 4, 4);
+                ctx.fillRect(this.x + 18, this.y + 8, 4, 4);
+                ctx.restore();
+            }
+        }
+
+        class JumpPad {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.w = 36;
+                this.h = 12;
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillRect(this.x, this.y, this.w, this.h);
+                drawSketchLine(this.x, this.y, this.x + this.w, this.y, 2);
+                ctx.restore();
+            }
+        }
+
+        const SHOP_ITEMS = [
+            { id: 'scarf', name: '🧣 Hero Scarf', price: 0, equipped: true },
+            { id: 'tophat', name: '🎩 Top Hat', price: 15, equipped: false },
+            { id: 'catears', name: '🐱 Cat Ears', price: 20, equipped: false },
+            { id: 'crown', name: '👑 Gold Crown', price: 30, equipped: false }
+        ];
+
+        function renderShopGrid() {
+            if (!shopGrid) return;
+            shopGrid.innerHTML = '';
+            SHOP_ITEMS.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-white border-2 border-slate-800 rounded-xl p-3 flex flex-col items-center justify-between shadow-sm";
+                card.innerHTML = `
+                    <span class="text-2xl my-1">${item.name.split(' ')[0]}</span>
+                    <span class="font-bold sketch-font text-sm text-slate-800">${item.name}</span>
+                    <span class="text-xs font-bold text-amber-600 mb-2">${item.price === 0 ? 'FREE' : item.price + ' ✒️'}</span>
+                    <button class="sketch-btn ${equippedHat === item.id ? 'bg-emerald-300' : 'bg-amber-200'} text-xs px-3 py-1 font-bold w-full">
+                        ${equippedHat === item.id ? 'EQUIPPED' : 'EQUIP'}
+                    </button>
+                `;
+                const btn = card.querySelector('button');
+                btn.addEventListener('click', () => {
+                    if (inkDrops >= item.price) {
+                        equippedHat = item.id;
+                        renderShopGrid();
+                    }
+                });
+                shopGrid.appendChild(card);
+            });
+        }
+
+        const LEVELS = [
+            {
+                name: "CHAPTER 1: THE SPELLED GATE",
+                targetWord: "OPEN",
+                story: "Carter is trapped in a sketchbook! Assemble letters to alter reality.",
+                objective: "Spell OPEN to unlock the exit gate.",
+                hazards: "Ink Spikes",
+                gadgets: "Moveable Letter Blocks",
+                platforms: [{ x: 0, y: 380, w: 800, h: 70 }, { x: 300, y: 280, w: 200, h: 20 }],
+                blocks: [
+                    new Block(120, 340, 'O'),
+                    new Block(180, 340, 'P'),
+                    new Block(240, 340, 'E'),
+                    new Block(300, 340, 'N')
+                ],
+                monsters: [],
+                jumpPads: [],
+                doorX: 720, doorY: 300,
+                isBoss: false
+            },
+            {
+                name: "CHAPTER 2: THE SKY ELEVATOR",
+                targetWord: "LIFT",
+                story: "Elevators only move when spelled into existence!",
+                objective: "Spell LIFT to elevate to the high ledge.",
+                hazards: "Patrolling Ink Bug",
+                gadgets: "Elevator Platforms",
+                platforms: [{ x: 0, y: 380, w: 350, h: 70 }, { x: 450, y: 380, w: 350, h: 70 }, { x: 600, y: 180, w: 200, h: 20 }],
+                blocks: [
+                    new Block(80, 340, 'L'),
+                    new Block(140, 340, 'I'),
+                    new Block(200, 340, 'F'),
+                    new Block(260, 340, 'T')
+                ],
+                monsters: [new Monster(150, 350, 60)],
+                jumpPads: [],
+                doorX: 720, doorY: 100,
+                isBoss: false
+            },
+            {
+                name: "CHAPTER 3: INK CROSSING",
+                targetWord: "BRIDGE",
+                story: "A chasm of dark ink blocks the path ahead.",
+                objective: "Spell BRIDGE across the ink pit.",
+                hazards: "Dark Ink Pit & Spikes",
+                gadgets: "Spring Pads & Blocks",
+                platforms: [{ x: 0, y: 380, w: 250, h: 70 }, { x: 550, y: 380, w: 250, h: 70 }],
+                blocks: [
+                    new Block(40, 340, 'B'), new Block(80, 340, 'R'), new Block(120, 340, 'I'),
+                    new Block(160, 340, 'D'), new Block(200, 340, 'G'), new Block(240, 340, 'E')
+                ],
+                monsters: [],
+                jumpPads: [new JumpPad(200, 368)],
+                doorX: 720, doorY: 300,
+                isBoss: false
+            },
+            {
+                name: "CHAPTER 4: MANGA ACTION ZONE",
+                targetWord: "EXIT",
+                story: "Manga action panels require speed and quick reflexes!",
+                objective: "Spell EXIT while avoiding patrol creeps.",
+                hazards: "Double Ink Monsters",
+                gadgets: "High Jump Trampolines",
+                platforms: [{ x: 0, y: 380, w: 800, h: 70 }, { x: 200, y: 260, w: 180, h: 20 }, { x: 450, y: 260, w: 180, h: 20 }],
+                blocks: [
+                    new Block(60, 340, 'E'), new Block(110, 340, 'X'),
+                    new Block(160, 340, 'I'), new Block(210, 340, 'T')
+                ],
+                monsters: [new Monster(220, 230, 40), new Monster(480, 230, 40)],
+                jumpPads: [new JumpPad(380, 368)],
+                doorX: 720, doorY: 300,
+                isBoss: false
+            },
+            {
+                name: "CHAPTER 5: THE INK TITAN BOSS",
+                targetWord: "WOOD",
+                story: "The Ink Titan has awakened! Spell WOOD or SWORD to defeat him!",
+                objective: "Spell WOOD or SWORD to summon Carter's weapon and attack!",
+                hazards: "Boss Ink Attacks",
+                gadgets: "Weapon Speller",
+                platforms: [{ x: 0, y: 380, w: 800, h: 70 }, { x: 100, y: 260, w: 200, h: 20 }],
+                blocks: [
+                    new Block(60, 340, 'W'), new Block(110, 340, 'O'),
+                    new Block(160, 340, 'O'), new Block(210, 340, 'D'),
+                    new Block(260, 340, 'S'), new Block(310, 340, 'R')
+                ],
+                monsters: [],
+                jumpPads: [new JumpPad(320, 368)],
+                doorX: 720, doorY: 300,
+                isBoss: true
+            }
+        ];
+
+        let player = new Player(50, 300);
+        let currentLevel = LEVELS[0];
+        let keys = {};
+        let bossHP = 100;
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if ((e.code === 'KeyX' || e.code === 'KeyE') && currentState === STATE.PLAYING) {
+                handleLetterGrab();
+            }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        function updateHealthHeartsDisplay() {
+            let heartsStr = '';
+            for (let i = 0; i < player.health; i++) heartsStr += '❤️';
+            if (healthHearts) healthHearts.textContent = heartsStr;
+        }
+
+        function handleLetterGrab() {
+            if (player.heldBlock) {
+                player.heldBlock.isHeld = false;
+                player.heldBlock.vx = player.facingRight ? 6 : -6;
+                player.heldBlock.vy = -3;
+                player.heldBlock = null;
+                playSFX('throw');
+            } else {
+                currentLevel.blocks.forEach(b => {
+                    const dist = Math.hypot(player.x - b.x, player.y - b.y);
+                    if (dist < 45 && !player.heldBlock) {
+                        player.heldBlock = b;
+                        b.isHeld = true;
+                        playSFX('pickup');
+                    }
+                });
+            }
+        }
+
+        function checkWordSpelled() {
+            // Sort blocks horizontally by X
+            const sorted = [...currentLevel.blocks].sort((a, b) => a.x - b.x);
+            let word = "";
+            for (let i = 0; i < sorted.length - 1; i++) {
+                if (Math.abs(sorted[i].y - sorted[i + 1].y) < 20 && Math.abs((sorted[i].x + sorted[i].w) - sorted[i + 1].x) < 25) {
+                    if (word === "") word = sorted[i].char;
+                    word += sorted[i + 1].char;
+                } else {
+                    word = "";
+                }
+
+                if (currentLevel.isBoss && (word.includes("WOOD") || word.includes("SWORD"))) {
+                    bossHP -= 50;
+                    playSFX('boss_hit');
+                    addMangaImpact(400, 200, "SLASH! -50 HP");
+                    if (bossHpBar) bossHpBar.style.width = bossHP + '%';
+                    if (bossHpText) bossHpText.textContent = `HP: ${bossHP}/100`;
+                    if (bossHP <= 0) {
+                        currentState = STATE.LEVEL_CLEAR;
+                        modalOverlay.classList.remove('hidden');
+                        inkDrops += 15;
+                        updateInkDisplay();
+                    }
+                    return;
+                } else if (!currentLevel.isBoss && word.includes(currentLevel.targetWord)) {
+                    currentState = STATE.LEVEL_CLEAR;
+                    modalOverlay.classList.remove('hidden');
+                    playSFX('clear');
+                    inkDrops += 10;
+                    updateInkDisplay();
+                    return;
+                }
+            }
+        }
+
+        function showLevelInfoModal(index) {
+            currentLevelIndex = index;
+            const lvl = LEVELS[index];
+            document.getElementById('info-level-title').textContent = lvl.name;
+            document.getElementById('info-story').textContent = lvl.story;
+            document.getElementById('info-objective').textContent = lvl.objective;
+            document.getElementById('info-hazards').textContent = lvl.hazards;
+            document.getElementById('info-gadgets').textContent = lvl.gadgets;
+            infoOverlay.classList.remove('hidden');
+        }
+
+        function loadLevel(index) {
+            currentLevelIndex = index;
+            currentLevel = LEVELS[index];
+            player = new Player(50, 300);
+            bossHP = 100;
+
+            levelBadge.textContent = `CHAPTER ${index + 1}`;
+            levelBadge.classList.remove('hidden');
+            healthContainer.classList.remove('hidden');
+            btnRestart.classList.remove('hidden');
+            btnInfo.classList.remove('hidden');
+            infoOverlay.classList.add('hidden');
+            gameoverOverlay.classList.add('hidden');
+
+            if (currentLevel.isBoss) {
+                bossHud.classList.remove('hidden');
+                if (bossHpBar) bossHpBar.style.width = '100%';
+                if (bossHpText) bossHpText.textContent = 'HP: 100/100';
+                mangaPanelOverlay.classList.remove('hidden');
+                drawMangaComicPanel();
+            } else {
+                bossHud.classList.add('hidden');
+            }
+
+            updateHealthHeartsDisplay();
+            currentState = STATE.PLAYING;
+        }
+
+        function drawMangaComicPanel() {
+            if (!mangaComicCanvas) return;
+            const mctx = mangaComicCanvas.getContext('2d');
+            mctx.fillStyle = '#ffffff';
+            mctx.fillRect(0, 0, 400, 220);
+            // Speedlines
+            mctx.strokeStyle = '#e2e8f0';
+            for (let i = 0; i < 20; i++) {
+                mctx.beginPath();
+                mctx.moveTo(200, 110);
+                mctx.lineTo(Math.random() * 400, Math.random() * 220);
+                mctx.stroke();
+            }
+            // Boss Sketch
+            mctx.fillStyle = '#1e1e24';
+            mctx.beginPath();
+            mctx.arc(200, 100, 50, 0, Math.PI * 2);
+            mctx.fill();
+            // Text
+            mctx.font = 'bold 24px "Bangers", sans-serif';
+            mctx.fillStyle = '#ef4444';
+            mctx.fillText("ROAR!", 170, 40);
+        }
+
+        mangaPanelContinueBtn.addEventListener('click', () => {
+            mangaPanelOverlay.classList.add('hidden');
+        });
+
+        function drawGameplay() {
+            ctx.clearRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+            // Draw Sky & Clouds
+            clouds.forEach(c => { c.update(); c.draw(ctx); });
+
+            // Platforms
+            currentLevel.platforms.forEach(p => {
+                ctx.fillStyle = '#fef3c7';
+                ctx.fillRect(p.x, p.y, p.w, p.h);
+                drawSketchLine(p.x, p.y, p.x + p.w, p.y, 3);
+            });
+
+            // Door / Exit
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(currentLevel.doorX, currentLevel.doorY, 40, 80);
+            drawSketchLine(currentLevel.doorX, currentLevel.doorY, currentLevel.doorX + 40, currentLevel.doorY, 3);
+
+            // Jump Pads
+            currentLevel.jumpPads.forEach(jp => {
+                jp.draw(ctx);
+                if (player.x + player.w > jp.x && player.x < jp.x + jp.w && player.y + player.h >= jp.y) {
+                    player.vy = -14;
+                    playSFX('jump');
+                }
+            });
+
+            // Monsters
+            currentLevel.monsters.forEach(m => {
+                m.update();
+                m.draw(ctx);
+                if (Math.hypot(player.x - m.x, player.y - m.y) < 25) {
+                    player.takeDamage(1);
+                }
+            });
+
+            // Blocks
+            currentLevel.blocks.forEach(b => {
+                b.update(currentLevel);
+                b.draw(ctx);
+            });
+
+            // Player
+            if (currentState === STATE.PLAYING) {
+                player.update(keys, currentLevel);
+                checkWordSpelled();
+            }
+            player.draw(ctx);
+
+            updateAndDrawParticles(ctx);
+        }
+
+        function drawMenu() {
+            ctx.clearRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+            clouds.forEach(c => { c.update(); c.draw(ctx); });
+
+            // Banner Title
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(200, 45, 400, 70);
+            drawSketchLine(200, 45, 600, 45, 3);
+            drawSketchLine(600, 45, 600, 115, 3);
+            drawSketchLine(600, 115, 200, 115, 3);
+            drawSketchLine(200, 115, 200, 45, 3);
+
+            ctx.font = 'bold 36px "Permanent Marker", "Bangers", sans-serif';
+            ctx.fillStyle = '#1e1e24';
+            ctx.textAlign = 'center';
+            ctx.fillText("TYPO ESCAPE", VIRTUAL_WIDTH / 2, 90);
+            ctx.restore();
+
+            menuStickman.update({ width: VIRTUAL_WIDTH, height: VIRTUAL_HEIGHT });
+            menuStickman.draw(ctx);
+        }
+
+        // Window Onload Start Game Engine
+        window.onload = function() {
+            updateInkDisplay();
+            menuStickman.reset(VIRTUAL_WIDTH / 2, 50);
+
+            // Simple render loop
+            function mainLoop() {
+                if (currentState === STATE.MENU) drawMenu();
+                else if (currentState === STATE.PLAYING || currentState === STATE.LEVEL_CLEAR) drawGameplay();
+                requestAnimationFrame(mainLoop);
+            }
+            mainLoop();
+        };
+
+        // Click Bindings
+        btnMenu.addEventListener('click', () => {
+            currentState = STATE.MENU;
+            levelBadge.classList.add('hidden');
+            healthContainer.classList.add('hidden');
+            bossHud.classList.add('hidden');
+            btnRestart.classList.add('hidden');
+            btnInfo.classList.add('hidden');
+            infoOverlay.classList.add('hidden');
+            modalOverlay.classList.add('hidden');
+            gameoverOverlay.classList.add('hidden');
+        });
+
+        btnRestart.addEventListener('click', () => loadLevel(currentLevelIndex));
+        modalNextBtn.addEventListener('click', () => {
+            modalOverlay.classList.add('hidden');
+            if (currentLevelIndex < LEVELS.length - 1) showLevelInfoModal(currentLevelIndex + 1);
+            else currentState = STATE.MENU;
+        });
+        gameoverRetryBtn.addEventListener('click', () => loadLevel(currentLevelIndex));
+        infoStartBtn.addEventListener('click', () => loadLevel(currentLevelIndex));
+
+        btnAudio.addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            btnAudio.textContent = soundEnabled ? '🔊 MUSIC: ON' : '🔇 MUSIC: OFF';
+            if (soundEnabled) initAudio();
+        });
+    </script>
+</body>
+</html>
